@@ -1,0 +1,150 @@
+{
+  "_exportDate": "2021-10-27T03:27:23.580Z",
+  "_type": "flow",
+  "applicationId": "616dc1a2e05986cd5aa6f014",
+  "customNodeVersions": [
+  ],
+  "customNodes": [
+  ],
+  "description": "",
+  "enabled": true,
+  "flowClass": "embedded",
+  "globals": [
+  ],
+  "id": "6178b91c20bbb0894804bd99",
+  "minimumAgentVersion": "0.0.0",
+  "name": "step3",
+  "nodes": [
+    {
+      "config": {
+        "functionName": "read_accelerometer",
+        "inputs": [
+        ],
+        "outputs": [
+          {
+            "destinationPath": "working.readings",
+            "maxLength": "32",
+            "type": "json"
+          }
+        ],
+        "resultPath": "working.result"
+      },
+      "id": "jDzZ7FfKPO",
+      "meta": {
+        "category": "data",
+        "description": "",
+        "label": "Registered Function",
+        "name": "registered-function",
+        "x": 120,
+        "y": 180
+      },
+      "outputIds": [
+        [
+          "0DTtOpmqBf"
+        ]
+      ],
+      "type": "RegisteredFunctionNode"
+    },
+    {
+      "config": {
+        "expression": "{{working.result}} === 0"
+      },
+      "id": "0DTtOpmqBf",
+      "meta": {
+        "category": "logic",
+        "description": "",
+        "label": "Conditional",
+        "name": "conditional",
+        "x": 120,
+        "y": 300
+      },
+      "outputIds": [
+        [
+          "SOHxooe14h"
+        ],
+        [
+          "4yHyQK7Zqi"
+        ]
+      ],
+      "type": "ConditionalNode"
+    },
+    {
+      "config": {
+        "attrDataMethod": "individualFields",
+        "attrInfos": [
+          {
+            "key": "x",
+            "valueTemplate": "{{working.readings.[0]}}"
+          },
+          {
+            "key": "y",
+            "valueTemplate": "{{working.readings.[1]}}"
+          },
+          {
+            "key": "z",
+            "valueTemplate": "{{working.readings.[2]}}"
+          }
+        ],
+        "resultPath": "",
+        "timeSourceType": "payloadTime"
+      },
+      "id": "4yHyQK7Zqi",
+      "meta": {
+        "category": "output",
+        "description": "",
+        "label": "Device: State",
+        "name": "device-state",
+        "x": 220,
+        "y": 440
+      },
+      "outputIds": [
+        [
+          "SOHxooe14h"
+        ]
+      ],
+      "type": "DeviceChangeStateNode"
+    },
+    {
+      "config": {
+        "message": "",
+        "property": ""
+      },
+      "id": "SOHxooe14h",
+      "meta": {
+        "category": "output",
+        "description": "",
+        "label": "Debug",
+        "name": "debug",
+        "x": 120,
+        "y": 580
+      },
+      "outputIds": [
+      ],
+      "type": "DebugNode"
+    }
+  ],
+  "triggers": [
+    {
+      "config": {
+        "seconds": 5
+      },
+      "key": "WISP775J_Fzg8_kjt9gDt",
+      "meta": {
+        "category": "trigger",
+        "description": "",
+        "label": "Timer",
+        "name": "timer",
+        "timerTypeSelect": "seconds",
+        "uiId": "6k_YTUXJk1",
+        "x": 120,
+        "y": 60
+      },
+      "outputIds": [
+        [
+          "jDzZ7FfKPO"
+        ]
+      ],
+      "type": "timer"
+    }
+  ]
+}

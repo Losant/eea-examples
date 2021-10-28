@@ -1,0 +1,35 @@
+{
+  "name": "losant-eea-example",
+  "version": "0.0.1",
+  "description": "An example Node.js application for the Losant Embedded Edge Agent",
+  "author": "Losant <hello@losant.com>",
+  "homepage": "https://github.com/Losant/eea-examples/tree/main/node#readme",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "lint": "esw . --ext .js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "reinstall": "rm -rf node_modules && yarn install"
+  },
+  "bin": {
+    "cli": "./bin/cli.js"
+  },
+  "dependencies": {
+    "mqtt": "^4.2.8"
+  },
+  "optionalDependencies": {
+    "fs-extra": "^10.0.0"
+  },
+  "devDependencies": {
+    "@losant/eslint-config-losant": "^1.4.3"
+  },
+  "browser": {
+    "fs-extra": false
+  },
+  "eslintConfig": {
+    "extends": "@losant/eslint-config-losant/env/node",
+    "globals": { "WebAssembly": true }
+  }
+}
