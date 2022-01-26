@@ -22,5 +22,6 @@ target_compile_options(
     -DESP32
     -O3
     -freorder-blocks
-    -Dd_m3RecordBacktraces)
+    -Dd_m3RecordBacktraces
+    -Dd_m3VerboseErrorMessages)
 

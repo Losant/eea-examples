@@ -18,6 +18,7 @@ class EEA_Runtime {
     QueueHandle_t xQueueEEA;
     QueueHandle_t xQueueMQTT;
     QueueHandle_t xQueueFlows;
+    QueueHandle_t xQueueNVS;
     EEA_API *eea_api;
     EEA_Registered_Functions *eea_registered_functions;
 
@@ -34,10 +35,13 @@ class EEA_Runtime {
     char *message_buffer_payload;
     uint32_t message_buffer_payload_length;
 
+    char *bundle_id;
+
   private:
     StaticTask_t xTaskBuffer;
+    StaticQueue_t xStaticQueueNVS;
     StackType_t *xStack;
-
+    TaskHandle_t xSaveBundleTaskHandle;
 };
 
 #endif

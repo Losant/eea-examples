@@ -74,14 +74,21 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
       break;
     case MQTT_EVENT_DATA:
       ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-      ESP_LOGI(TAG, "Topic: %s", event->topic);
+
+      // Topics are not null-terminated from the client.
+      // Null terminate it for logging.
+      char topic_terminated[256];
+      strncpy(topic_terminated, event->topic, event->topic_len);
+      topic_terminated[event->topic_len] = '\0';
+
+      ESP_LOGI(TAG, "Topic: %s", topic_terminated);
       ESP_LOGI(TAG, "Payload length: %d", event->data_len);
 
       // If this is a new WASM bundle, put it in the 
       // flows queue. Otherwise it goes in the regular
       // message queue.
-      if(strstr(event->topic, "flows") != NULL) {
-        // WASM bundles are pretty big (~100kb). Need to allocate this rom SPIRAM.
+      if(strnstr(event->topic, "flows", event->topic_len) != NULL) {
+        // WASM bundles are pretty big (~150kb). Need to allocate this using SPIRAM.
         EEA_Queue_Msg_Flow *msg = (EEA_Queue_Msg_Flow*)heap_caps_malloc(1 * sizeof(EEA_Queue_Msg_Flow), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         memcpy(msg->bundle, event->data, event->data_len);
         msg->bundle_size = event->data_len;
@@ -89,12 +96,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         free(msg);
 
       } else {
-        EEA_Queue_Msg msg;
-        strcpy(msg.topic, event->topic);
-        strcpy(msg.payload, event->data);
-        msg.topic_length = event->topic_len;
-        msg.payload_length = event->data_len;
-        xQueueSend(eea_mqtt->xQueueEEA, &msg, 0);
+        EEA_Queue_Msg *msg = (EEA_Queue_Msg*)heap_caps_malloc(1 * sizeof(EEA_Queue_Msg), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        strncpy(msg->topic, event->topic, event->topic_len);
+        strncpy(msg->payload, event->data, event->data_len);
+        msg->topic_length = event->topic_len;
+        msg->payload_length = event->data_len;
+        xQueueSend(eea_mqtt->xQueueEEA, msg, 0);
+        free(msg);
       }
 
       break;
@@ -139,13 +147,14 @@ void eea_mqtt_task(void *pvParameters)
   while(true) {
     if(eea_mqtt->is_connected) {
       if(uxQueueMessagesWaiting(eea_mqtt->xQueueMQTT) > 0) {
-        EEA_Queue_Msg msg;
-        if(xQueueReceive(eea_mqtt->xQueueMQTT, &msg, 0) == pdPASS) {
+        EEA_Queue_Msg *msg = (EEA_Queue_Msg*)heap_caps_malloc(1 * sizeof(EEA_Queue_Msg), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if(xQueueReceive(eea_mqtt->xQueueMQTT, msg, 0) == pdPASS) {
           ESP_LOGI(TAG, "Processing MQTT queue message.");
-          ESP_LOGI(TAG, "Topic: %s", msg.topic);
-          ESP_LOGI(TAG, "Payload: %s", msg.payload);
-          esp_mqtt_client_publish(client, msg.topic, msg.payload, msg.payload_length, msg.qos, 0);
+          ESP_LOGI(TAG, "Topic: %s", msg->topic);
+          ESP_LOGI(TAG, "Payload: %s", msg->payload);
+          esp_mqtt_client_publish(client, msg->topic, msg->payload, msg->payload_length, msg->qos, 0);
         }
+        free(msg);
       }
     }
     vTaskDelay(xDelay);

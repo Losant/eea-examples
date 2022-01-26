@@ -4,6 +4,7 @@ node/node_modules
 esp32/build
 esp32/wasm3
 esp32/sdkconfig
+esp32/sdkconfig.old
 
 
 ### REF ###

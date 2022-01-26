@@ -1,6 +1,9 @@
 #include "esp_log.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 
 #include "eea_runtime.h"
 #include "eea_api.h"
@@ -11,8 +14,15 @@
 #include <m3_env.h>
 
 #define WASM_STACK_SLOTS    (128 * 1024)
-#define WASM_TASK_STACK     (512 * 1024)
+#define WASM_TASK_STACK     (768 * 1024)
 #define EEA_RUNTIME_TASK_PRIORITY 4
+
+#define EEA_RUNTIME_SAVE_BUNDLE_TASK_SIZE 4096
+#define EEA_RUNTIME_SAVE_BUNDLE_TASK_PRIORITY 4
+
+// Namespace and key when storing wasm bundles to NVS.
+#define EEA_NVS_NAMESPACE "EEA"
+#define EEA_NVS_KEY "eea_bundle"
 
 static const char *TAG = "EEA_RUNTIME";
 
@@ -29,8 +39,8 @@ void send_hello_message(const char *bundle_version, QueueHandle_t xQueueMQTT)
 {
   ESP_LOGI(TAG, "Sending hello message: %s", bundle_version);
 
-  char topic[EEA_TOPIC_SIZE_BYTES];
-  char payload[EEA_PAYLOAD_SIZE_BYTES];
+  char topic[256];
+  char payload[1024];
   uint32_t topic_length;
   uint32_t payload_length;
 
@@ -46,16 +56,108 @@ void send_hello_message(const char *bundle_version, QueueHandle_t xQueueMQTT)
     "}"
   "}", bundle_version);
 
+  ESP_LOGI(TAG, "Topic: %s", topic);
   ESP_LOGI(TAG, "Payload: %s", payload);
 
-  EEA_Queue_Msg msg;
-  strcpy(msg.topic, topic);
-  strcpy(msg.payload, payload);
-  msg.topic_length = topic_length;
-  msg.payload_length = payload_length;
-  msg.qos = 0;
+  EEA_Queue_Msg *msg = (EEA_Queue_Msg*)malloc(sizeof(EEA_Queue_Msg));
+  strcpy(msg->topic, topic);
+  strcpy(msg->payload, payload);
+  msg->topic_length = topic_length;
+  msg->payload_length = payload_length;
+  msg->qos = 0;
 
-  xQueueSend(xQueueMQTT, &msg, 0);
+  xQueueSend(xQueueMQTT, msg, 0);
+
+  free(msg);
+}
+
+/**
+ * Checks NVS for a persisted wasm bundle.
+ * If exists, will queue bundle in xQueueFlows.
+ * Logged error codes can be found in nvs.h.
+ * 
+ * Returns:
+ *  0 if bundle exists and successfully loaded.
+ *  1 if no bundle was loaded.
+ */
+int load_from_nvs(EEA_Runtime *eea_runtime)
+{
+  ESP_LOGI(TAG, "Attempting to load wasm bundle from NVS...");
+
+  nvs_handle_t eea_nvs_handle;
+  esp_err_t err;
+
+  err = nvs_open(EEA_NVS_NAMESPACE, NVS_READONLY, &eea_nvs_handle);
+  if (err != ESP_OK) {
+    ESP_LOGI(TAG, "Failed to open NVS storage. Error: 0x%04x", err);
+    return 1;
+  }
+
+  size_t required_size = 0;
+  err = nvs_get_blob(eea_nvs_handle, EEA_NVS_KEY, NULL, &required_size);
+  if (err != ESP_OK) {
+    ESP_LOGI(TAG, "No bundle in storage or failed to read bundle size. Error: 0x%04x", err);
+    nvs_close(eea_nvs_handle);
+    return 1;
+  }
+
+  if(required_size == 0) {
+    ESP_LOGI(TAG, "Bundle found in NVS, but size was 0.");
+    return 1;
+  }
+
+  // There is a bundle in NVS. Allocate message, read, and add to queue.
+  EEA_Queue_Msg_Flow *msg = (EEA_Queue_Msg_Flow*)heap_caps_malloc(1 * sizeof(EEA_Queue_Msg_Flow), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+
+  err = nvs_get_blob(eea_nvs_handle, EEA_NVS_KEY, msg->bundle, &required_size);
+  if(err != ESP_OK) {
+    ESP_LOGI(TAG, "Failed to read bundle from NVS. Error: 0x%04x", err);
+    nvs_close(eea_nvs_handle);
+    free(msg);
+    return 1;
+  }
+
+  ESP_LOGI(TAG, "Bundle loaded from NVS. Size: %d", required_size);
+  msg->bundle_size = required_size;
+  xQueueSend(eea_runtime->xQueueFlows, msg, 0);
+  free(msg);
+
+  nvs_close(eea_nvs_handle);
+  return 0;
+}
+
+/**
+ * Saves a wasm bundle to NVS storage.
+ */
+void save_to_nvs(EEA_Runtime *eea_runtime) {
+  
+  ESP_LOGI(TAG, "Attempting to save wasm bundle to NVS...");
+
+  nvs_handle_t eea_nvs_handle;
+  esp_err_t err;
+
+  err = nvs_open(EEA_NVS_NAMESPACE, NVS_READWRITE, &eea_nvs_handle);
+  if (err != ESP_OK) {
+    ESP_LOGI(TAG, "Failed to open NVS storage. Error: 0x%04x", err);
+    return;
+  }
+
+  err = nvs_set_blob(eea_nvs_handle, EEA_NVS_KEY, eea_runtime->bundle->bundle, eea_runtime->bundle->bundle_size);
+  if(err != ESP_OK) {
+    ESP_LOGI(TAG, "Failed to save bundle to NVS. Error: 0x%04x", err);
+    nvs_close(eea_nvs_handle);
+    return;
+  }
+
+  err = nvs_commit(eea_nvs_handle);
+  if(err != ESP_OK) {
+    ESP_LOGI(TAG, "Failed to commit NVS. Error: 0x%04x", err);
+    nvs_close(eea_nvs_handle);
+    return;
+  }
+
+  ESP_LOGI(TAG, "Successfully saved bundle to NVS.");
+  nvs_close(eea_nvs_handle);
 }
 
 /**
@@ -91,30 +193,35 @@ void load_wasm(EEA_Runtime *eea_runtime, char *bundle, uint32_t bundle_size)
   if (result != m3Err_none) {
       ESP_LOGI(TAG, "eea_init find %s", result);
   }
-
+  
   result = m3_FindFunction (&eea_runtime->eea_loop, eea_runtime->wasm_runtime, "eea_loop");
   if (result != m3Err_none) {
       ESP_LOGI(TAG, "eea_loop find %s", result);
+      ESP_LOGI(TAG, "%s", eea_runtime->wasm_runtime->error_message);
   }
 
   result = m3_FindFunction (&eea_runtime->eea_message_received, eea_runtime->wasm_runtime, "eea_message_received");
   if (result != m3Err_none) {
       ESP_LOGI(TAG, "eea_message_received find %s", result);
+      ESP_LOGI(TAG, "%s", eea_runtime->wasm_runtime->error_message);
   }
 
   result = m3_FindFunction (&eea_config_set_trace_level, eea_runtime->wasm_runtime, "eea_config_set_trace_level");
   if (result != m3Err_none) {
       ESP_LOGI(TAG, "eea_config_set_trace_level find %s", result);
+      ESP_LOGI(TAG, "%s", eea_runtime->wasm_runtime->error_message);
   }
 
   result = m3_FindFunction (&eea_config_set_storage_size, eea_runtime->wasm_runtime, "eea_config_set_storage_size");
   if (result != m3Err_none) {
       ESP_LOGI(TAG, "eea_config_set_storage_size find %s", result);
+      ESP_LOGI(TAG, "%s", eea_runtime->wasm_runtime->error_message);
   }
 
   result = m3_FindFunction (&eea_config_set_storage_interval, eea_runtime->wasm_runtime, "eea_config_set_storage_interval");
   if (result != m3Err_none) {
       ESP_LOGI(TAG, "eea_config_set_storage_interval find %s", result);
+      ESP_LOGI(TAG, "%s", eea_runtime->wasm_runtime->error_message);
   }
 
   m3_CallV(eea_config_set_storage_size, 4096);
@@ -139,9 +246,6 @@ void load_wasm(EEA_Runtime *eea_runtime, char *bundle, uint32_t bundle_size)
   int32_t bundle_id_ptr = bundle_id_value.value.i32;
   int32_t bundle_id_length_ptr = bundle_id_length_value.value.i32;
 
-  ESP_LOGI(TAG, "bundle_id_ptr: %d", bundle_id_ptr);
-  ESP_LOGI(TAG, "bundle_id_length_ptr: %d", bundle_id_length_ptr);
-
   uint32_t memory_size = 0;
   char *mem = (char*)m3_GetMemory(eea_runtime->wasm_runtime, &memory_size, 0);
 
@@ -151,7 +255,8 @@ void load_wasm(EEA_Runtime *eea_runtime, char *bundle, uint32_t bundle_size)
   memcpy(bundle_id, &(mem[bundle_id_ptr]), bundle_id_length);
   bundle_id[bundle_id_length] = '\0';
 
-  ESP_LOGI(TAG, "bundle_id_length: %d", bundle_id_length);
+  eea_runtime->bundle_id = bundle_id;
+
   ESP_LOGI(TAG, "bundle_id: %s", bundle_id);
 
   send_hello_message(bundle_id, eea_runtime->xQueueMQTT);
@@ -186,20 +291,14 @@ void destroy_wasm(EEA_Runtime *eea_runtime)
 void eea_runtime_task(void *pvParameters)
 {
   EEA_Runtime *eea_runtime = (EEA_Runtime*)pvParameters;
-
-  // When the runtime task is initialized, immediately send the Hello Message.
-  send_hello_message("nullVersion", eea_runtime->xQueueMQTT);
-
+  
   M3Result result = m3Err_none;
 
   const TickType_t xDelay = 50 / portTICK_PERIOD_MS;
   while(true) {
 
     if(eea_runtime->bundle != NULL) {
-      int64_t start = esp_timer_get_time();
       result = m3_CallV(eea_runtime->eea_loop, (uint64_t)(esp_timer_get_time() / 1000));
-      int64_t end = esp_timer_get_time();
-      ESP_LOGI(TAG, "Loop time: %d", (int)((end - start) / 1000));
     }
 
     if(result != m3Err_none) {
@@ -217,19 +316,23 @@ void eea_runtime_task(void *pvParameters)
       if(xQueueReceive(eea_runtime->xQueueFlows, eea_runtime->bundle, 0) == pdPASS) {
         ESP_LOGI(TAG, "Processing new WASM bundle.");
         load_wasm(eea_runtime, eea_runtime->bundle->bundle, eea_runtime->bundle->bundle_size);
+
+        // Queue the bundle for saving.
+        xQueueSend(eea_runtime->xQueueNVS, eea_runtime->bundle_id, 0);
       }
     }
 
     // Check for messages to send to the EEA.
     if(uxQueueMessagesWaiting(eea_runtime->xQueueEEA) > 0) {
-      EEA_Queue_Msg msg;
-      if(xQueueReceive(eea_runtime->xQueueEEA, &msg, 0) == pdPASS) {
+      EEA_Queue_Msg *msg = (EEA_Queue_Msg*)malloc(sizeof(EEA_Queue_Msg));
+      if(xQueueReceive(eea_runtime->xQueueEEA, msg, 0) == pdPASS) {
         
         ESP_LOGI(TAG, "Processing message from EEA queue.");
-        memcpy(eea_runtime->message_buffer_topic, msg.topic, msg.topic_length);
-        memcpy(eea_runtime->message_buffer_payload, msg.payload, msg.payload_length);
-        m3_CallV(eea_runtime->eea_message_received, msg.topic_length, msg.payload_length);
+        memcpy(eea_runtime->message_buffer_topic, msg->topic, msg->topic_length);
+        memcpy(eea_runtime->message_buffer_payload, msg->payload, msg->payload_length);
+        m3_CallV(eea_runtime->eea_message_received, msg->topic_length, msg->payload_length);
       }
+      free(msg);
     }
 
     vTaskDelay(xDelay);
@@ -265,11 +368,49 @@ void eea_runtime_task(void *pvParameters)
   }
 }
 
+/**
+ * Task that saves wasm bundles to NVS.
+ * Due to limitation in ESP, NVS operations can't be done on tasks in SPIRAM.
+ * This task is in main memory and receives messages via queue.
+ * 
+ * pvParameters = *EEA_Runtime
+ */
+void eea_save_bundle_task(void *pvParameters)
+{
+  EEA_Runtime *eea_runtime = (EEA_Runtime*)pvParameters;
+
+  const TickType_t xDelay = 100 / portTICK_PERIOD_MS;
+
+  while(true) {
+    // Check to see if there is a new WASM bundle to load.
+    if(uxQueueMessagesWaiting(eea_runtime->xQueueNVS) > 0) {
+
+      // The queue message is the bundle ID.
+      char bundle_id[128];
+      if(xQueueReceive(eea_runtime->xQueueNVS, bundle_id, 0) == pdPASS) {
+        save_to_nvs(eea_runtime);
+      }
+    }
+
+    vTaskDelay(xDelay);
+  }
+}
+
 EEA_Runtime::EEA_Runtime(QueueHandle_t xQueueMQTT, QueueHandle_t xQueueEEA, QueueHandle_t xQueueFlows)
 {
   this->xQueueMQTT = xQueueMQTT;
   this->xQueueEEA= xQueueEEA;
   this->xQueueFlows = xQueueFlows;
+
+  // Create a queue for persisting wasm bundles. Due to limitation in ESP, flash (nvs) operations
+  // cannot be performed from tasks in SPIRAM. We need a task in main memory, which the
+  // runtime task (eea_runtime_task) can communicate with via this queue.
+  // This queue holds bundle ID strings.
+  this->xQueueNVS = xQueueCreate(1, 128);
+
+  // Create the wasm bundle persisting task.
+  xTaskCreate(eea_save_bundle_task, "eea_runtime_save_bundle_task",
+    EEA_RUNTIME_SAVE_BUNDLE_TASK_SIZE, this, EEA_RUNTIME_SAVE_BUNDLE_TASK_SIZE, &(this->xSaveBundleTaskHandle));
 
   // WASM bundles can be pretty big. Allocating a bunch of memory (~512kb)
   // from SPIRAM for the runtime task.
@@ -282,4 +423,13 @@ EEA_Runtime::EEA_Runtime(QueueHandle_t xQueueMQTT, QueueHandle_t xQueueEEA, Queu
   xTaskCreateStatic(eea_runtime_task, "eea_runtime_task", 
     WASM_TASK_STACK, this, EEA_RUNTIME_TASK_PRIORITY,
     xStack, &(this->xTaskBuffer));
+
+  // Attempt to load a wasm bundle from NVS.
+  // If no bundle was found, report "nullVersion" in the Hello Message.
+  // If a bundle was found, the function queues bundle in xQueueFlows.
+  // Since this function (EEA_Runtime) is called from the main task, 
+  // flash (nvs) operations can be done here.
+  if(load_from_nvs(this) != 0) {
+    send_hello_message("nullVersion", this->xQueueMQTT);
+  }
 }

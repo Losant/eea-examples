@@ -10,7 +10,12 @@ This example is implemented using the [ESP-IDF](https://docs.espressif.com/proje
 
 Due to the memory requirements of the EEA (~2MB), only ESP32 boards with a PSRAM chip are supported. We recommend the [Espressif ESP32 WROVER KIT](https://www.adafruit.com/product/3384).
 
-By default, this example does not fit in the ESP32's IRAM. Please refer to Espressif's documentation on [optimizing IRAM usage](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/performance/ram-usage.html#optimizing-iram-usage). The largest impact will be setting the compiler's optimization level to "Optimize for size" (-0s), which can be found in the `menuconfig` settings.
+By default, this example does not fit in the ESP32's IRAM. Please refer to Espressif's documentation on [optimizing IRAM usage](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/performance/ram-usage.html#optimizing-iram-usage). In most cases, the following `menuconfig` settings are required:
+
+1. Enable: Compiler options -> Optimization Level -> Optimized for size (-Os)
+1. Enable: Component Config -> FreeRTOS -> Place FreeRTOS functions into Flash
+1. Disable: Component Config -> Wi-Fi -> WiFi IRAM speed optimization
+1. Disable: Component Config -> Wi-Fi -> WiFi RX IRAM  speed optimization
 
 ## Configuring WiFi
 
@@ -19,6 +24,21 @@ This example makes use of the [`example_connect()`](https://github.com/espressif
 ## Configuring the EEA
 
 The source file `eea_config.h` contains a number of configuration options that change the behavior of this example code — the most important of which are the Losant device credentials, which are required when making an MQTT connection to Losant's broker.
+
+## Partition Table
+
+This example persists WASM bundles into the ESP32's [Non-Volatile Storage](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/storage/nvs_flash.html) (NVS). By default, the ESP32's NVS is not large enough, so a new partition table is provided in `partitions.csv`. To use this table, you must change the following `menuconfig` settings:
+
+1. Enabled: Partition Table -> Custom partition table CSV
+1. Partition Table -> Custom partition table CSV file -> partitions.csv (this will be the default)
+
+To remove the persisted WASM bundle, you can run the following command:
+
+```
+idf.py erase_flash
+```
+
+This also removes the firmware, which will require you to re-flash the ESP32 with your firmware.
 
 ## wasm3 WebAssembly Runtime
 
@@ -36,13 +56,13 @@ The majority of the code provided in this example applies to nearly any EEA impl
 
 [Registered Functions](https://docs.losant.com/edge-compute/embedded-edge-agent/agent-api/#registered-function-api) are the primary way your [Embedded Workflows](https://docs.losant.com/workflows/embedded-workflows/) interact with your application code and your device's system resources (e.g. GPIO, I2C, etc.).
 
-This code provides an example registered function, `read_accelerometer`, so you can see how they are implemented and imported into the WASM bundle. It's unlikely that the registered function provided by this example code will apply to your use case. It is expected that you will remove the example registered functions and create your own.
+This code provides registered functions that wrap several underlying [GPIO](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/gpio.html) and [ADC](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/adc.html) functions for the ESP32. If your solution requires the ESP32's GPIO or ADC, you may be able to use these functions as-is. Otherwise, they are provided as examples that can help guide the implementation of your own registered functions.
 
 ---
 
 ## License
 
-Copyright &copy; 2021 Losant IoT, Inc. All rights reserved.
+Copyright &copy; 2022 Losant IoT, Inc. All rights reserved.
 
 Licensed under the [MIT](https://github.com/Losant/losant-examples/blob/master/LICENSE.txt) license.
 

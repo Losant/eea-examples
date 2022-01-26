@@ -2,13 +2,13 @@
 #define EEA_CONFIG_H
 
 // Losant device credentials.
-#define LOSANT_DEVICE_ID "YOUR_DEVICE_ID"
-#define LOSANT_ACCESS_KEY "YOUR_ACCESS_KEY"
-#define LOSANT_ACCESS_SECRET "YOUR_ACCESS_SECRET"
+#define LOSANT_DEVICE_ID "DEVICE_ID"
+#define LOSANT_ACCESS_KEY "ACCESS_KEY"
+#define LOSANT_ACCESS_SECRET "ACCESS_SECRET"
 
 // Message buffer sizes.
 #define EEA_TOPIC_SIZE_BYTES 256
-#define EEA_PAYLOAD_SIZE_BYTES 1024
+#define EEA_PAYLOAD_SIZE_BYTES 8192
 
 // Losant MQTT broker configuration.
 #define EEA_BROKER_URL "mqtt://broker.losant.com"
