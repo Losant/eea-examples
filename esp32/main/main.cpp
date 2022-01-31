@@ -55,8 +55,8 @@ extern "C" void app_main(void)
   StaticQueue_t xStaticQueueEEA;
   StaticQueue_t xStaticQueueFlows;
 
-  uint8_t *mqtt_queue_buffer = (uint8_t*)heap_caps_malloc(2 * sizeof(EEA_Queue_Msg), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  uint8_t *eea_queue_buffer = (uint8_t*)heap_caps_malloc(2 * sizeof(EEA_Queue_Msg), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  uint8_t *mqtt_queue_buffer = (uint8_t*)heap_caps_malloc(10 * sizeof(EEA_Queue_Msg), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  uint8_t *eea_queue_buffer = (uint8_t*)heap_caps_malloc(10 * sizeof(EEA_Queue_Msg), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   uint8_t *flows_queue_buffer = (uint8_t*)heap_caps_malloc(1 * sizeof(EEA_Queue_Msg_Flow), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 
   QueueHandle_t xQueueMQTT;

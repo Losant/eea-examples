@@ -11,7 +11,7 @@ static const char *TAG = "ESP32_GPIO";
 
 /**
  * Wraps the ESP IDF gpio_set_direction function.
- * Used to configure GPIO pings as digital inputs or outputs.
+ * Used to configure GPIO pins as digital inputs or outputs.
  * https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/gpio.html#_CPPv418gpio_set_direction10gpio_num_t11gpio_mode_t
  * Inputs:
  *  pin (Int32): the pin to set.

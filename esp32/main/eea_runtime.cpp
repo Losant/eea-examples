@@ -59,7 +59,9 @@ void send_hello_message(const char *bundle_version, QueueHandle_t xQueueMQTT)
   ESP_LOGI(TAG, "Topic: %s", topic);
   ESP_LOGI(TAG, "Payload: %s", payload);
 
-  EEA_Queue_Msg *msg = (EEA_Queue_Msg*)malloc(sizeof(EEA_Queue_Msg));
+  // Allocate from PSRAM.
+  EEA_Queue_Msg *msg = (EEA_Queue_Msg*)heap_caps_malloc(1 * sizeof(EEA_Queue_Msg), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  
   strcpy(msg->topic, topic);
   strcpy(msg->payload, payload);
   msg->topic_length = topic_length;
