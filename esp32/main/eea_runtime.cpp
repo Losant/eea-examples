@@ -21,6 +21,7 @@
 #define EEA_RUNTIME_SAVE_BUNDLE_TASK_PRIORITY 4
 
 // Namespace and key when storing wasm bundles to NVS.
+#define EEA_NVS_PARTITION "eea"
 #define EEA_NVS_NAMESPACE "EEA"
 #define EEA_NVS_KEY "eea_bundle"
 
@@ -89,7 +90,7 @@ int load_from_nvs(EEA_Runtime *eea_runtime)
   nvs_handle_t eea_nvs_handle;
   esp_err_t err;
 
-  err = nvs_open(EEA_NVS_NAMESPACE, NVS_READONLY, &eea_nvs_handle);
+  err = nvs_open_from_partition(EEA_NVS_PARTITION, EEA_NVS_NAMESPACE, NVS_READONLY, &eea_nvs_handle);
   if (err != ESP_OK) {
     ESP_LOGI(TAG, "Failed to open NVS storage. Error: 0x%04x", err);
     return 1;
@@ -138,7 +139,23 @@ void save_to_nvs(EEA_Runtime *eea_runtime) {
   nvs_handle_t eea_nvs_handle;
   esp_err_t err;
 
-  err = nvs_open(EEA_NVS_NAMESPACE, NVS_READWRITE, &eea_nvs_handle);
+  // Bundles are large and NVS always appends data.
+  // This leads to running out of NVS space quickly.
+  // Need to delete all contents from the "eea" partition, then write the new bundle.
+  err = nvs_flash_erase_partition(EEA_NVS_PARTITION);
+  if (err != ESP_OK) {
+    ESP_LOGI(TAG, "Failed to erase eea NVS partition. Error: 0x%04x", err);
+    return;
+  }
+
+  // Need to re-initialize nvs after being erased.
+  err = nvs_flash_init_partition(EEA_NVS_PARTITION);
+  if (err != ESP_OK) {
+    ESP_LOGI(TAG, "Failed to initialize eea NVS partition. Error: 0x%04x", err);
+    return;
+  }
+
+  err = nvs_open_from_partition(EEA_NVS_PARTITION, EEA_NVS_NAMESPACE, NVS_READWRITE, &eea_nvs_handle);
   if (err != ESP_OK) {
     ESP_LOGI(TAG, "Failed to open NVS storage. Error: 0x%04x", err);
     return;
@@ -236,7 +253,7 @@ void load_wasm(EEA_Runtime *eea_runtime, char *bundle, uint32_t bundle_size)
   m3_CallV(eea_config_set_storage_interval, 0);
   m3_CallV(eea_config_set_trace_level, 1);
   m3_CallV(eea_runtime->eea_set_connection_status, eea_runtime->connected);
-  
+
   m3_CallV(eea_init);
 
   uint8_t eea_init_return_code = 0;
