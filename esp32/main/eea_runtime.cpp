@@ -13,7 +13,7 @@
 #include <wasm3.h>
 #include <m3_env.h>
 
-#define WASM_STACK_SLOTS    (128 * 1024)
+#define WASM_STACK_SLOTS    (256 * 1024)
 #define WASM_TASK_STACK     (768 * 1024)
 #define EEA_RUNTIME_TASK_PRIORITY 4
 
@@ -61,7 +61,7 @@ void send_hello_message(const char *bundle_version, QueueHandle_t xQueueMQTT)
 
   // Allocate from PSRAM.
   EEA_Queue_Msg *msg = (EEA_Queue_Msg*)heap_caps_malloc(1 * sizeof(EEA_Queue_Msg), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  
+
   strcpy(msg->topic, topic);
   strcpy(msg->payload, payload);
   msg->topic_length = topic_length;
@@ -208,6 +208,12 @@ void load_wasm(EEA_Runtime *eea_runtime, char *bundle, uint32_t bundle_size)
       ESP_LOGI(TAG, "%s", eea_runtime->wasm_runtime->error_message);
   }
 
+  result = m3_FindFunction (&eea_runtime->eea_set_connection_status, eea_runtime->wasm_runtime, "eea_set_connection_status");
+  if (result != m3Err_none) {
+      ESP_LOGI(TAG, "eea_set_connection_status find %s", result);
+      ESP_LOGI(TAG, "%s", eea_runtime->wasm_runtime->error_message);
+  }
+
   result = m3_FindFunction (&eea_config_set_trace_level, eea_runtime->wasm_runtime, "eea_config_set_trace_level");
   if (result != m3Err_none) {
       ESP_LOGI(TAG, "eea_config_set_trace_level find %s", result);
@@ -229,6 +235,8 @@ void load_wasm(EEA_Runtime *eea_runtime, char *bundle, uint32_t bundle_size)
   m3_CallV(eea_config_set_storage_size, 4096);
   m3_CallV(eea_config_set_storage_interval, 0);
   m3_CallV(eea_config_set_trace_level, 1);
+  m3_CallV(eea_runtime->eea_set_connection_status, eea_runtime->connected);
+  
   m3_CallV(eea_init);
 
   uint8_t eea_init_return_code = 0;
@@ -330,9 +338,27 @@ void eea_runtime_task(void *pvParameters)
       if(xQueueReceive(eea_runtime->xQueueEEA, msg, 0) == pdPASS) {
         
         ESP_LOGI(TAG, "Processing message from EEA queue.");
-        memcpy(eea_runtime->message_buffer_topic, msg->topic, msg->topic_length);
-        memcpy(eea_runtime->message_buffer_payload, msg->payload, msg->payload_length);
-        m3_CallV(eea_runtime->eea_message_received, msg->topic_length, msg->payload_length);
+
+        // Check for #connect or #disconnect messages.
+        // These should not be forwarded to the EEA. They are intercepted and used
+        // to invoke eea_set_connection_status.
+        if(strnstr(msg->topic, "#connect", msg->topic_length) != NULL) {
+          eea_runtime->connected = true;
+          if(eea_runtime->bundle != NULL) {
+            m3_CallV(eea_runtime->eea_set_connection_status, true);
+          }
+        } else if(strnstr(msg->topic, "#disconnect", msg->topic_length) != NULL) {
+          eea_runtime->connected = false;
+          if(eea_runtime->bundle != NULL) {
+            m3_CallV(eea_runtime->eea_set_connection_status, false);
+          }
+        } else {
+          if(eea_runtime->bundle != NULL) {
+            memcpy(eea_runtime->message_buffer_topic, msg->topic, msg->topic_length);
+            memcpy(eea_runtime->message_buffer_payload, msg->payload, msg->payload_length);
+            m3_CallV(eea_runtime->eea_message_received, msg->topic_length, msg->payload_length);
+          }
+        }
       }
       free(msg);
     }

@@ -34,6 +34,23 @@ static void log_error_if_nonzero(const char *message, int error_code)
     }
 }
 
+/**
+ * Queues a connect or disconnect message.
+ * Queue message with topic "#connect" or "#disconnect" with no payload.
+ * This is picked up by the runtime to change the connected status of the EEA.
+ * Received topics cannot have '#' characters in them, so this will never conflict with real messages.
+ */
+static void queue_connect_message(bool connected, EEA_MQTT *eea_mqtt)
+{
+  const char *topic = connected ? "#connect" : "#disconnect";
+  EEA_Queue_Msg *msg = (EEA_Queue_Msg*)heap_caps_malloc(1 * sizeof(EEA_Queue_Msg), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  msg->topic_length = strlen(topic);
+  strcpy(msg->topic, topic);
+  msg->payload_length = 0;
+  xQueueSend(eea_mqtt->xQueueEEA, msg, 0);
+  free(msg);
+}
+
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
   ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
@@ -58,10 +75,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
       eea_mqtt->is_connected = true;
 
+      queue_connect_message(true, eea_mqtt);
+
       break;
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
       eea_mqtt->is_connected = false;
+      queue_connect_message(false, eea_mqtt);
       break;
     case MQTT_EVENT_SUBSCRIBED:
       ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);

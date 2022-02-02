@@ -24,6 +24,7 @@ class EEA_Runtime {
 
     IM3Function eea_loop;
     IM3Function eea_message_received;
+    IM3Function eea_set_connection_status;
     IM3Environment wasm_env;
     IM3Runtime wasm_runtime;
     IM3Module wasm_module;
@@ -36,6 +37,7 @@ class EEA_Runtime {
     uint32_t message_buffer_payload_length;
 
     char *bundle_id;
+    bool connected = false;
 
   private:
     StaticTask_t xTaskBuffer;
