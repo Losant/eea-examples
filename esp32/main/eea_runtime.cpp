@@ -386,8 +386,7 @@ void eea_runtime_task(void *pvParameters)
   // This code gets hit if an eea_loop iteration fails.
   // Most commonly caused by an exception in the WASM.
   // To help with debugging, this code prints a stacktrace
-  // and spins. In production, you may want to restart
-  // the board or reload the WASM bundle.
+  // and then restarts the board.
   IM3BacktraceInfo info = m3_GetBacktrace(eea_runtime->wasm_runtime);
 
   if (info) {
@@ -406,11 +405,7 @@ void eea_runtime_task(void *pvParameters)
     }
   }
 
-  while(true) {
-    int32_t millis = 100;
-    const TickType_t xDelay = millis / portTICK_PERIOD_MS;
-    vTaskDelay(xDelay);
-  }
+  esp_restart();
 }
 
 /**

@@ -11,8 +11,8 @@
 #define EEA_PAYLOAD_SIZE_BYTES 8192
 
 // Losant MQTT broker configuration.
-#define EEA_BROKER_URL "mqtt://broker.losant.com"
-#define EEA_BROKER_PORT 1883
+#define EEA_BROKER_URL "mqtts://broker.losant.com"
+#define EEA_BROKER_PORT 8883
 
 // The maximum wasm bundle size is 256kb.
 // Most bundles are a little over 100kb.

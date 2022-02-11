@@ -1,12 +1,8 @@
 /**
  * Makes an MQTT connection to Losant's broker and handles queued message data.
  * 
- * For simplicity, this example code is using an unencrypted connection.
- * For SSL, please see ESP's example here:
- * https://github.com/espressif/esp-idf/tree/master/examples/protocols/mqtt/ssl
- * 
  * This code is based on the example code here:
- * https://github.com/espressif/esp-idf/tree/master/examples/protocols/mqtt/tcp
+ * https://github.com/espressif/esp-idf/tree/master/examples/protocols/mqtt/ssl
  */
 
 #include "esp_log.h"
@@ -18,7 +14,7 @@
 #include "eea_config.h"
 #include "eea_queue_msg.h"
 
-#define EEA_MQTT_TASK_SIZE 4096
+#define EEA_MQTT_TASK_SIZE 16384
 #define EEA_MQTT_TASK_PRIORITY 4
 
 // The max payload size from the broker is 256KB.
@@ -26,6 +22,11 @@
 #define EEA_MQTT_OUT_BUFFER_SIZE (1024 * 32)
 
 static const char *TAG = "EEA_MQTT";
+
+// Load the CA file for the MQTT broker (root_ca.pem).
+// This is used to verify the server certificate.
+extern const uint8_t root_ca_pem_start[]   asm("_binary_root_ca_pem_start");
+extern const uint8_t root_ca_pem_end[]   asm("_binary_root_ca_pem_end");
 
 static void log_error_if_nonzero(const char *message, int error_code)
 {
@@ -154,6 +155,7 @@ void eea_mqtt_task(void *pvParameters)
     .password = LOSANT_ACCESS_SECRET,
     .user_context = eea_mqtt,
     .buffer_size = EEA_MQTT_IN_BUFFER_SIZE,
+    .cert_pem = (const char *)root_ca_pem_start,
     .out_buffer_size = EEA_MQTT_OUT_BUFFER_SIZE
   };
 

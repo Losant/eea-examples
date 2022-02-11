@@ -7,3 +7,5 @@ set(EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_exam
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(hello_world)
+
+target_add_binary_data(hello_world.elf "main/root_ca.pem" TEXT)

@@ -12,10 +12,11 @@ Due to the memory requirements of the EEA (~2MB), only ESP32 boards with a PSRAM
 
 By default, this example does not fit in the ESP32's IRAM. Please refer to Espressif's documentation on [optimizing IRAM usage](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/performance/ram-usage.html#optimizing-iram-usage). In most cases, the following `menuconfig` settings are required:
 
-1. Enable: Compiler options -> Optimization Level -> Optimized for size (-Os)
-1. Enable: Component Config -> FreeRTOS -> Place FreeRTOS functions into Flash
-1. Disable: Component Config -> Wi-Fi -> WiFi IRAM speed optimization
-1. Disable: Component Config -> Wi-Fi -> WiFi RX IRAM  speed optimization
+1. Compiler options -> Optimization Level -> Optimized for size (-Os)
+1. Component Config -> FreeRTOS -> Place FreeRTOS functions into Flash (enable)
+1. Component Config -> Wi-Fi -> WiFi IRAM speed optimization (disable)
+1. Component Config -> Wi-Fi -> WiFi RX IRAM  speed optimization (disable)
+1. Component Config -> mbedTLS -> Memory allocation strategy -> External SPIRAM
 
 ## Configuring WiFi
 
