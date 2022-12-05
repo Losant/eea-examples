@@ -1,0 +1,23 @@
+[package]
+name = "r-eea-wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasmer = "2.3.0"
+# wasmer-compiler-llvm = "2.3.0" # for 32-bit architectures
+wasmer-compiler-cranelift = "2.3.0"
+rumqttc = "0.18.0"
+rustls = "0.20.7"
+rustls-native-certs = "0.6.2"
+serde = { version = "1.0.148", features = [ "derive" ] }
+toml = "0.5.9"
+once_cell = "1.16.0"
+libflate = "1.2.0"
+
+# optional optimizations for binary size (e.g up to a third the size)
+[profile.release]
+strip = true  # automatically strip symbols from the binary.
+lto = true # LLVM's link time optimizations
+panic = "abort" # no stack reports on panic errors
+#opt-level = "z"  # Optimize compilation for size. may degrade performance
