@@ -3,7 +3,7 @@
 
     contains globals and structs
 */
-use miniserde::Deserialize;
+use serde::Deserialize;
 use toml;
 use rumqttc::Client;
 use wasmer::{Memory, Instance, WasmerEnv};
