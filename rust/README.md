@@ -19,10 +19,9 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 For other operating systems see the [`Rust docs`](https://forge.rust-lang.org/infra/other-installation-methods.html).
 
-
 ### Compiling
 
-Compilation options can be found within the Cargo.toml file.
+Compilation options can be found within the `Cargo.toml` file.
 
 Local testing (run from this folder):
 ```bash
@@ -60,17 +59,17 @@ Compile with the cargo build target flag:
 cargo build --target=aarch64-unknown-linux-gnu
 ```
 
-As mentioned above the current configuration is only for 64-bit platforms. To build for 32-bit you'll require changing the compiler in the code from cranelift to LLVM.
-To compile for small microcontrollers may require further significant code changes, such as converting all libraries/crates to non-std versions.
+As mentioned above the current configuration is only for 64-bit platforms. To build for 32-bit it's required to change the compiler in the code from cranelift to LLVM.
+Compilation for microcontrollers may require significant code changes, such as converting all libraries/crates to non-std versions.
 
 ## Running this Example
 
 ### Runtime Configurations
 
 Configuration options are located within the `resources/eea_config.toml` file.
-This file contains options for device authentication, file locations, MQTT conection configurations, and [`EEA WASM compilation options`](https://docs.losant.com/edge-compute/embedded-edge-agent/mqtt-specification/#topic-and-payload).
+This file contains options for device authentication, file locations, MQTT connection configurations, and [`EEA WASM compilation options`](https://docs.losant.com/edge-compute/embedded-edge-agent/mqtt-specification/#topic-and-payload).
 
-Before execution the only required configuration changes are the Losant device authentication credentials (device ID, access key, and access secret), the local wasm bundle file path, and the local storage file path:
+Before execution the required configuration changes are: the Losant device authentication credentials (device ID, access key, and access secret), the local wasm bundle file path, and the local storage file path:
 ```
 eea_device_id = "1a1a1a1a1a1a1a1a1a1a1a1a"
 eea_access_key = "https://docs.losant.com/devices/overview/#create-access-key"
@@ -102,19 +101,21 @@ Upon execution you can interact with the app through the terminal commands:
 
 ## Code Description
 
-The Rust code for this example EEA app is all located within the `src` folder. Code file descriptions:
+The Rust code for this example EEA app is located within the `src` folder.
+
+Code file descriptions:
 
 ### Interactive CLI - *cli.rs*
 
-A simple interactive CLI built with the Rust std IO crate. This is meant to run in a separate thread and insert user input into a queue (`user_input_queue`).
+A simple interactive CLI built with the Rust std IO crate. This is meant to run in a separate thread, and this inserts user input into a queue (`user_input_queue`).
 
-Accepts the commands info, direct, and exit. Direct requires a direct id and JSON payload string e.g. `direct myId123 { "temp": 98.7 }`.
+Accepts the commands info, direct, and exit. Direct requires a direct ID and JSON payload string e.g. `direct myId123 { "temp": 98.7 }`.
 
 ### App Config / Header - *configs.rs*
 
 Shared globals and structs.
 
-The config file, `resources/eea_config.toml`, is lazy loaded into the `CONFIGS` object using the Rust crate one_cell which is currently experimental in the std crate.
+The config file, `resources/eea_config.toml`, is lazy loaded into the `CONFIGS` object using the Rust crate one_cell.
 
 ### EEA API - *eea_api.rs*
 
