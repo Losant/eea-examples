@@ -2,7 +2,7 @@
     EEA WASM helper functions
 */
 use crate::configs::{
-    CONFIGS, Env, WasmInfo, PTR_BUFFER_MESSAGE_TOPIC, PTR_BUFFER_MESSAGE_PAYLOAD
+    DEFAULT_BUNDLE_ID, CONFIGS, Env, WasmInfo, PTR_BUFFER_MESSAGE_TOPIC, PTR_BUFFER_MESSAGE_PAYLOAD
 };
 use crate::eea_api;
 use crate::registered_functions;
@@ -19,6 +19,7 @@ use wasmer_compiler_cranelift::Cranelift; // does not support 32-bit architectur
 use std::io::Read;
 use libflate::gzip::Decoder;
 use std::sync::atomic::Ordering;
+use std::path::Path;
 use std::fs::read;
 use std::error::Error;
 use std::process::exit;
@@ -120,6 +121,22 @@ pub fn load_wasm_bundle(mqtt_client: Client) -> Result<WasmInfo, Box<dyn Error>>
     // for imported memory, exported memory is not supported in this example
     let mem_type = MemoryType::new(5, None, false);
     let wasm_memory = Memory::new(&wasm_store, mem_type)?;
+
+    let wasm_exists = Path::new(&CONFIGS.eea_bundle_path).exists();
+
+    if !wasm_exists {
+        println!("No EEA WASM bundle file detected at configured location.");
+
+        // create a temporary empty instance
+        let module = Module::new(&wasm_store, "(module)")?;
+        let imports = imports!{};
+        let instance = Instance::new(&module, &imports)?;
+        return Ok(WasmInfo { // defaults for no bundle
+            instance,
+            memory: wasm_memory,
+            bundle_id: DEFAULT_BUNDLE_ID.to_owned(),
+        });
+    }
 
     // read from WASM file, if gzipped (eea_bundle_gzip set within resources/eea_config.toml) attempt to decode
     let wasm_bytes = read(&CONFIGS.eea_bundle_path)?;

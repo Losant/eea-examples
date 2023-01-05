@@ -40,7 +40,7 @@ pub fn display_info(bundle_id: &str) {
     WASM Bundle ID: {}
     WASM Loop Interval (ms): {}
     WASM Trace Level: {}
-    WASM Stacke Size (bytes): {}
+    WASM Stack Size (bytes): {}
     WASM Path: {}           
         "#,
         CONFIGS.eea_version, CONFIGS.eea_device_id, CONFIGS.eea_broker, CONFIGS.eea_base_topic,

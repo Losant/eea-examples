@@ -8,7 +8,7 @@ eea_bundle_path = "resources/bundle.wasm"
 eea_storage_path = "resources/eeaStore.json"
 
 # broker info
-eea_broker = "broker.losant"
+eea_broker = "broker.losant.com"
 eea_base_topic = "losant"
 
 # WASM settings

@@ -15,6 +15,9 @@ use std::sync::atomic::{AtomicI32, AtomicBool};
 // set the absolute or relative path to your eea_config toml file
 static CONFIG_PATH: &str = "resources/eea_config.toml";
 
+// default bundle id
+pub static DEFAULT_BUNDLE_ID: &str = "nullVersion";
+
 // Buffer message config (atomics)
 pub static PTR_BUFFER_MESSAGE_TOPIC: AtomicI32 = AtomicI32::new(0);
 pub static BUFFER_MESSAGE_TOPIC_LENGTH: AtomicI32 = AtomicI32::new(0);

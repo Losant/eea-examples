@@ -4,7 +4,7 @@
     Creates and monitors threads (MQTT, WASM, and CLI).
     Main loop takes action on queued messages.
 */
-use crate::configs::{CONFIGS, MQTT_CONNECTED};
+use crate::configs::{DEFAULT_BUNDLE_ID, CONFIGS, MQTT_CONNECTED};
 use crate::cli::{cli_prompt, display_info};
 use crate::mqtt::{mqtt_handle_messaging, mqtt_config, mqtt_init, send_hello};
 use crate::wasm_helpers::{
@@ -40,10 +40,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     
     let mut wasm_info = load_wasm_bundle(mqtt_client)?;
     let bundle_id = wasm_info.bundle_id.clone();
-    let (
-        mut eea_loop, mut eea_shutdown, mut eea_set_connection_status,
-        mut eea_message_received, mut eea_direct_trigger
-    ) = get_exported_eea_apis(wasm_info.instance);
 
     // MQTT Threads:
     thread::spawn(move || {
@@ -57,6 +53,77 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // CLI Prompt Thread:
     thread::spawn(move || { cli_prompt(user_input_queue); });
+
+    // initial loop before EEA WASM bundle
+    if &wasm_info.bundle_id == DEFAULT_BUNDLE_ID {
+        loop {
+            // user input queue
+            let mut user_inputs = user_input_queue_clone.lock().unwrap();
+            for input in user_inputs.drain(..) {
+                if input == "exit" { // shutdown WASM, MQTT, and exit
+                    mqtt_client_again.disconnect()?;
+                    exit(0);
+                } else if input == "info" { // Current Info
+                    display_info(&wasm_info.bundle_id);
+                } else if input.starts_with("direct") { // fire a direct trigger 
+                    println!("Not supported until WASM file is loaded.");
+                    println!("(info, direct, exit) >");
+                }
+            }
+            drop(user_inputs); // otherwise we lockup other threads during sleep
+
+            // mqtt message queue
+            let mut mqtt_msgs = recieved_msg_queue_clone.lock().unwrap();
+            for mut msg in mqtt_msgs.drain(..) {
+                let msg_type = msg.remove(0);
+                let msg_res = match msg_type {
+                    'u' => { // updating WASM
+                        println!("Updating WASM...");
+                        let mqtt_client_clone = mqtt_client_again.clone();
+                        let mqtt_client_again = mqtt_client_again.clone();
+
+                        wasm_info = load_wasm_bundle(mqtt_client_clone)?;
+                        send_hello(mqtt_client_again, &wasm_info.bundle_id);
+                        0
+                    },
+                    'c' => { // connected
+                        MQTT_CONNECTED.store(true, Ordering::Relaxed);
+                        0
+                    },
+                    'd' => { // disconnected
+                        MQTT_CONNECTED.store(false, Ordering::Relaxed);
+                        0
+                    },
+                    'm' => { // command message
+                        println!("Command messages not supported until WASM file is loaded.");
+                        0
+                    },
+                    'v' => { // virtual button message
+                        println!("Virtual buttons not supported until WASM file is loaded.");
+                        0
+                    },
+                    _ => { 1 }// empty, err but keep going
+
+                };
+                if msg_res != 0 {
+                    eprintln!("Incoming message EEA Error-code: {:?}", msg_res);
+                }
+            }
+            drop(mqtt_msgs); // otherwise we lockup other threads during sleep
+
+            // Once a WASM file is loaded continue
+            if &wasm_info.bundle_id != DEFAULT_BUNDLE_ID { break; }
+
+            // pause between main loop
+            thread::sleep(Duration::from_millis(CONFIGS.eea_main_loop_interval));
+        }
+    }
+
+    // load EEA WASM API functions
+    let (
+        mut eea_loop, mut eea_shutdown, mut eea_set_connection_status,
+        mut eea_message_received, mut eea_direct_trigger
+    ) = get_exported_eea_apis(wasm_info.instance);
 
     // main loop
     loop {
@@ -73,7 +140,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 input = input.replacen("direct ", "", 1);
                 match input.split_once(" ") {
                     Some((direct_id, payload)) => {
-                        send_direct_trigger(&wasm_info.memory, payload.to_owned(), direct_id.to_owned(), eea_direct_trigger.clone());
+                        send_direct_trigger(&wasm_info.memory, direct_id.to_owned(), payload.to_owned(), eea_direct_trigger.clone());
                     }
                     None => {
                         eprintln!("Invalid direct command format, should be: direct direct_id JSON_payload_string");
@@ -96,7 +163,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     eea_shutdown.call()?;
 
-                    wasm_info = load_wasm_bundle(mqtt_client_clone)?; // the move and setup here is the issue
+                    wasm_info = load_wasm_bundle(mqtt_client_clone)?;
                     (eea_loop, eea_shutdown, eea_set_connection_status, eea_message_received, eea_direct_trigger) =
                         get_exported_eea_apis(wasm_info.instance);
 
@@ -105,7 +172,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     0
                 },
                 'c' => { // connected
-                    MQTT_CONNECTED.store(true, Ordering::Relaxed);
+                    MQTT_CONNECTED.store(true, Ordering::Relaxed);       
                     eea_set_connection_status.call(1)?
                 },
                 'd' => { // disconnected
@@ -113,12 +180,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                     eea_set_connection_status.call(0)?
                 },
                 'm' => { // command message
-                    let topic = CONFIGS.eea_base_topic.clone() + "/" + &CONFIGS.eea_device_id + "/command";
+                    let topic = CONFIGS.eea_base_topic.clone() + "/" + &CONFIGS.eea_device_id + "/command";       
                     let (topic_len, payload_len) = set_message_buffer(&wasm_info.memory, msg, topic);
                     eea_message_received.call(topic_len, payload_len)?
                 },
                 'v' => { // virtual button message
-                    let topic = CONFIGS.eea_base_topic.clone() + "/" + &CONFIGS.eea_device_id + "/toAgent/virtualButton";
+                    let topic = CONFIGS.eea_base_topic.clone() + "/" + &CONFIGS.eea_device_id + "/toAgent/virtualButton";    
                     let (topic_len, payload_len) = set_message_buffer(&wasm_info.memory, msg, topic);
                     eea_message_received.call(topic_len, payload_len)?
                 },
