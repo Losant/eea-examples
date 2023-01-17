@@ -2,12 +2,12 @@
     EEA WASM helper functions
 */
 use crate::configs::{
-    DEFAULT_BUNDLE_ID, CONFIGS, Env, WasmInfo, PTR_BUFFER_MESSAGE_TOPIC, PTR_BUFFER_MESSAGE_PAYLOAD
+    DEFAULT_BUNDLE_ID, CONFIGS, Env, WasmInfo, PTR_BUFFER_MESSAGE_TOPIC, PTR_BUFFER_MESSAGE_PAYLOAD,
+    MqttPublishInfo
 };
 use crate::eea_api;
 use crate::registered_functions;
 
-use rumqttc::Client;
 use wasmer::{
     Universal, Store, Module, Instance, MemoryType, Memory,
     MemoryView, imports, Function, NativeFunc
@@ -18,6 +18,7 @@ use wasmer::{
 use wasmer_compiler_cranelift::Cranelift; // does not support 32-bit architectures
 use std::io::Read;
 use libflate::gzip::Decoder;
+use std::sync::{Mutex, Arc};
 use std::sync::atomic::Ordering;
 use std::path::Path;
 use std::fs::read;
@@ -113,7 +114,7 @@ pub fn send_direct_trigger(
 }
 
 // Loads and configures a WASM module from a byte array.
-pub fn load_wasm_bundle(mqtt_client: Client) -> Result<WasmInfo, Box<dyn Error>> {
+pub fn load_wasm_bundle(mqtt_publish_queue: Arc<Mutex<Vec<MqttPublishInfo>>>) -> Result<WasmInfo, Box<dyn Error>> {
     // WASM compiler, or runtime here
     let wasm_compiler = Cranelift::new();
     let wasm_store = Store::new(&Universal::new(wasm_compiler).engine());
@@ -151,7 +152,7 @@ pub fn load_wasm_bundle(mqtt_client: Client) -> Result<WasmInfo, Box<dyn Error>>
 
     let env = Env {
         memory: wasm_memory.clone(),
-        mqtt_client
+        mqtt_publish_queue
     };
 
     // functions that are defined in native code and imported into the EEA WASM module
@@ -168,7 +169,8 @@ pub fn load_wasm_bundle(mqtt_client: Client) -> Result<WasmInfo, Box<dyn Error>>
             "eea_set_message_buffers" => Function::new_native(&wasm_store, eea_api::eea_set_message_buffers),
             "eea_sleep" => Function::new_native(&wasm_store, eea_api::eea_sleep),
             // add registered_functions
-            "eea_fn_terminal_print" => Function::new_native_with_env(&wasm_store, env, registered_functions::eea_fn_terminal_print),
+            // clone env for subsequent functions, possible warning in editor
+            "eea_fn_terminal_print" => Function::new_native_with_env(&wasm_store, env.clone(), registered_functions::eea_fn_terminal_print),
         }
     };
 

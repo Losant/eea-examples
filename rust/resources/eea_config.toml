@@ -25,4 +25,4 @@ eea_storage_size = 32768 # bytes
 eea_storage_interval = 30000 # milliseconds
 
 # iteration delay between WASM thread calls
-eea_main_loop_interval = 1000 # milliseconds
+eea_main_loop_interval = 100 # milliseconds

@@ -8,6 +8,8 @@
 use crate::configs::{CONFIGS, MQTT_CONNECTED};
 
 use std::io::Write;
+use std::thread;
+use std::time::Duration;
 use std::sync::{Mutex, Arc};
 use std::sync::atomic::Ordering;
 
@@ -25,6 +27,8 @@ pub fn cli_prompt(user_input_queue: Arc<Mutex<Vec<String>>>) {
 
         let input = line.trim().to_string();
         user_input_queue.lock().unwrap().push(input);
+
+        thread::sleep(Duration::from_millis(100));
     }
 }
 

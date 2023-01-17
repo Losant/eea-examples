@@ -4,9 +4,9 @@
     Creates and monitors threads (MQTT, WASM, and CLI).
     Main loop takes action on queued messages.
 */
-use crate::configs::{DEFAULT_BUNDLE_ID, CONFIGS, MQTT_CONNECTED};
+use crate::configs::{DEFAULT_BUNDLE_ID, CONFIGS, MQTT_CONNECTED, MqttPublishInfo};
 use crate::cli::{cli_prompt, display_info};
-use crate::mqtt::{mqtt_handle_messaging, mqtt_config, mqtt_init, send_hello};
+use crate::mqtt::{mqtt_handle_messaging, mqtt_config, mqtt_init, send_hello, mqtt_publish};
 use crate::wasm_helpers::{
     set_message_buffer, get_exported_eea_apis, load_wasm_bundle, send_direct_trigger
 };
@@ -32,20 +32,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     let user_input_queue_clone = user_input_queue.clone();
     let recieved_msg_queue: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let recieved_msg_queue_clone = recieved_msg_queue.clone();
+    let mqtt_publish_queue: Arc<Mutex<Vec<MqttPublishInfo>>> = Arc::new(Mutex::new(Vec::new()));
+    let mqtt_publish_queue_clone = mqtt_publish_queue.clone();
 
     let mqtt_options = mqtt_config()?;
     let (mqtt_client, connection) = Client::new(mqtt_options, 10);
     let mqtt_client_clone = mqtt_client.clone();
     let mut mqtt_client_again = mqtt_client.clone();
     
-    let mut wasm_info = load_wasm_bundle(mqtt_client)?;
+    let mut wasm_info = load_wasm_bundle(mqtt_publish_queue.clone())?;
     let bundle_id = wasm_info.bundle_id.clone();
 
     // MQTT Threads:
     thread::spawn(move || {
-        thread::spawn(move || {
-            mqtt_init(mqtt_client_clone, &bundle_id);
+        thread::spawn(move || { // initialization (subscribe, hello) thread
+            mqtt_init(mqtt_client, &bundle_id);
             thread::sleep(Duration::from_millis(100));
+        });
+        thread::spawn(move || { // publish queue thread
+            mqtt_publish(mqtt_client_clone, mqtt_publish_queue);
         });
 
         mqtt_handle_messaging(connection, recieved_msg_queue);
@@ -72,18 +77,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             drop(user_inputs); // otherwise we lockup other threads during sleep
 
-            // mqtt message queue
+            // MQTT message queue
             let mut mqtt_msgs = recieved_msg_queue_clone.lock().unwrap();
             for mut msg in mqtt_msgs.drain(..) {
                 let msg_type = msg.remove(0);
                 let msg_res = match msg_type {
                     'u' => { // updating WASM
                         println!("Updating WASM...");
-                        let mqtt_client_clone = mqtt_client_again.clone();
-                        let mqtt_client_again = mqtt_client_again.clone();
 
-                        wasm_info = load_wasm_bundle(mqtt_client_clone)?;
-                        send_hello(mqtt_client_again, &wasm_info.bundle_id);
+                        wasm_info = load_wasm_bundle(mqtt_publish_queue_clone.clone())?;
+                        send_hello(mqtt_client_again.clone(), &wasm_info.bundle_id);
                         0
                     },
                     'c' => { // connected
@@ -151,23 +154,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         drop(user_inputs); // otherwise we lockup other threads during sleep
 
-        // mqtt message queue
+        // MQTT message queue
         let mut mqtt_msgs = recieved_msg_queue_clone.lock().unwrap();
         for mut msg in mqtt_msgs.drain(..) {
             let msg_type = msg.remove(0);
             let msg_res = match msg_type {
                 'u' => { // updating WASM
                     println!("Updating WASM...");
-                    let mqtt_client_clone = mqtt_client_again.clone();
-                    let mqtt_client_again = mqtt_client_again.clone();
 
                     eea_shutdown.call()?;
 
-                    wasm_info = load_wasm_bundle(mqtt_client_clone)?;
+                    wasm_info = load_wasm_bundle(mqtt_publish_queue_clone.clone())?;
                     (eea_loop, eea_shutdown, eea_set_connection_status, eea_message_received, eea_direct_trigger) =
                         get_exported_eea_apis(wasm_info.instance);
 
-                    send_hello(mqtt_client_again, &wasm_info.bundle_id);
+                    send_hello(mqtt_client_again.clone(), &wasm_info.bundle_id);
 
                     0
                 },

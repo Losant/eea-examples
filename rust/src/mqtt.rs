@@ -3,7 +3,7 @@
 
     http://docs.losant.com/edge-compute/embedded-edge-agent/mqtt-specification/
 */
-use crate::configs::CONFIGS;
+use crate::configs::{CONFIGS, MqttPublishInfo};
 
 use rustls::ClientConfig;
 use rumqttc::{self, Client, MqttOptions, QoS, Transport, Event, Incoming, Connection};
@@ -26,8 +26,11 @@ pub fn mqtt_handle_messaging(mut connection: Connection, recieved_msg_queue: Arc
 
         if let Ok(Event::Incoming(Incoming::Publish(publish))) = event { // incoming topic publish messages
             if publish.topic == update_topic {
-                write(&CONFIGS.eea_bundle_path, &publish.payload).expect("Unable to write file");
-                recieved_msg_queue.lock().unwrap().push("u".to_owned());
+                let recieved_msg_queue_clone = recieved_msg_queue.clone();
+                thread::spawn(move || { // avoid locking connection iter
+                    write(&CONFIGS.eea_bundle_path, &publish.payload).expect("Unable to write file");
+                    recieved_msg_queue_clone.lock().unwrap().push("u".to_owned());
+                });
             } else if publish.topic == command_topic {
                 let payload = from_utf8(&publish.payload).unwrap().to_owned();
                 recieved_msg_queue.lock().unwrap().push("m".to_owned() + &payload);
@@ -114,4 +117,26 @@ pub fn send_hello(mut client: Client, bundle_id: &str) {
         false,
         message
     ).unwrap();
+}
+
+// MQTT publish queue
+// should be run in a seperate thread, or convert to async
+pub fn mqtt_publish(mut client: Client, mqtt_publish_queue: Arc<Mutex<Vec<MqttPublishInfo>>>) {
+    loop {
+        let mut mqtt_publish_q = mqtt_publish_queue.lock().unwrap();
+        for publish in mqtt_publish_q.drain(..) {
+            client.publish(
+                publish.topic,
+                match publish.qos {
+                    0 => QoS::AtMostOnce,
+                    1 => QoS::AtLeastOnce,
+                    _ => QoS::ExactlyOnce
+                },
+                false,
+                publish.payload
+            ).unwrap();
+        }
+        drop(mqtt_publish_q);
+        thread::sleep(Duration::from_millis(500));
+    }
 }

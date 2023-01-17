@@ -5,11 +5,11 @@
 */
 use serde::Deserialize;
 use toml;
-use rumqttc::Client;
 use wasmer::{Memory, Instance, WasmerEnv};
 use once_cell::sync::Lazy;
 use std::process::exit;
 use std::fs::read_to_string;
+use std::sync::{Mutex, Arc};
 use std::sync::atomic::{AtomicI32, AtomicBool};
 
 // set the absolute or relative path to your eea_config toml file
@@ -75,11 +75,18 @@ pub static CONFIGS: Lazy<Config> = Lazy::new(|| {
     }
 });
 
+// MQTT publish info for queue 
+pub struct MqttPublishInfo {
+    pub topic: String,
+    pub payload: String,
+    pub qos: u8,
+}
+
 // WASM Environment variables to share with imported EEA functions 
 #[derive(WasmerEnv, Clone)]
 pub struct Env {
     pub memory: Memory,
-    pub mqtt_client: Client
+    pub mqtt_publish_queue: Arc<Mutex<Vec<MqttPublishInfo>>> 
 }
 
 // Currently running WASM info

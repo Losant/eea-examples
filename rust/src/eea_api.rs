@@ -7,11 +7,10 @@
           we can declare many of them different in the args for casting 
 */
 use crate::configs::{
-    CONFIGS, Env, PTR_BUFFER_MESSAGE_TOPIC, PTR_BUFFER_MESSAGE_PAYLOAD,
+    CONFIGS, Env, PTR_BUFFER_MESSAGE_TOPIC, PTR_BUFFER_MESSAGE_PAYLOAD, MqttPublishInfo,
     BUFFER_MESSAGE_TOPIC_LENGTH, BUFFER_MESSAGE_PAYLOAD_LENGTH, TRACE_LEVELS
 };
 
-use rumqttc::QoS;
 use wasmer::{MemoryView, WasmPtr, Array};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::sync::atomic::Ordering;
@@ -33,26 +32,20 @@ pub fn eea_send_message(
     topic: WasmPtr<u8, Array>,
     topic_len: u32,
     payload: WasmPtr<u8, Array>,
-    payload_len: u32, qos: i32
+    payload_len: u32,
+    qos: i32
 ) -> i32 {
     let topic = topic.get_utf8_string(&env.memory, topic_len).unwrap();
+    let topic_clone = topic.clone();
     let payload = payload.get_utf8_string(&env.memory, payload_len).unwrap();
 
-    let qos_type = match qos {
-        0 => QoS::AtMostOnce,
-        1 => QoS::AtLeastOnce,
-        _ => QoS::ExactlyOnce
-    };
+    env.mqtt_publish_queue.lock().unwrap().push(MqttPublishInfo {
+        topic,
+        qos: qos as u8,
+        payload,
+    });
 
-    env.mqtt_client.clone().publish(
-        topic.clone(),
-        qos_type,
-        false,
-        payload
-    )
-    .unwrap();
-
-    println!("Sent {:?} message.", topic);
+    println!("Queued {:?} message.", topic_clone);
 
     0
 }
