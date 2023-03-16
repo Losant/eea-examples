@@ -10,7 +10,7 @@ If you're new to the EEA, we recommend following the step-by-step [EEA Walkthrou
 
 ## License
 
-Copyright &copy; 2021 Losant IoT, Inc. All rights reserved.
+Copyright &copy; 2023 Losant IoT, Inc. All rights reserved.
 
 Licensed under the [MIT](https://github.com/Losant/losant-examples/blob/master/LICENSE.txt) license.
 
