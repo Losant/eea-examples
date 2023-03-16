@@ -1,0 +1,28 @@
+# EEA Configurations
+
+# required changes
+eea_device_id = ""
+eea_access_key = ""
+eea_access_secret = ""
+eea_bundle_path = "resources/bundle.wasm"
+eea_storage_path = "resources/eeaStore.json"
+
+# broker info
+eea_broker = "broker.losant.com"
+eea_base_topic = "losant"
+
+# WASM settings
+eea_trace_topic_level = 1
+eea_version = "1.0.0"
+eea_stack_size = 32768 # bytes
+eea_export_memory = false # not actually supported in this example
+eea_disable_debug_msg = false
+eea_debug_symbols = false
+eea_bundle_gzip = false
+
+# storage settings
+eea_storage_size = 32768 # bytes
+eea_storage_interval = 30000 # milliseconds
+
+# iteration delay between WASM thread calls
+eea_main_loop_interval = 100 # milliseconds
