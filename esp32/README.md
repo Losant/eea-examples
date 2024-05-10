@@ -4,7 +4,7 @@ This folder contains an example ESP32 (C++) application for the [Losant Embedded
 
 This example is meant to be used as a starting point and reference implementation for your own ESP32 applications. It is not intended to function as an out-of-the-box EEA implementation. Significant modifications will be required when implementing a production application.
 
-This example is implemented using the [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/).
+This example is implemented using the [ESP-IDF v4.4.7](https://docs.espressif.com/projects/esp-idf/en/v4.4.7/esp32/get-started/).
 
 ## Supported ESP32 Boards
 
