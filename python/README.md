@@ -66,7 +66,7 @@ This code provides some example registered functions so you can see how they are
 
 ## License
 
-Copyright &copy; 2021 Losant IoT, Inc. All rights reserved.
+Copyright &copy; 2025 Losant IoT, Inc. All rights reserved.
 
 Licensed under the [MIT](https://github.com/Losant/losant-examples/blob/master/LICENSE.txt) license.
 

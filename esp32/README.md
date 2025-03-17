@@ -63,7 +63,7 @@ This code provides registered functions that wrap several underlying [GPIO](http
 
 ## License
 
-Copyright &copy; 2022 Losant IoT, Inc. All rights reserved.
+Copyright &copy; 2025 Losant IoT, Inc. All rights reserved.
 
 Licensed under the [MIT](https://github.com/Losant/losant-examples/blob/master/LICENSE.txt) license.
 
